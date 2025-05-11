@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<style>
+    .admin-sidebar {
+        background-color: #2c3e50;
+        min-height: calc(100vh - 56px);
+        padding-top: 20px;
+    }
+    .admin-sidebar .nav-link {
+        color: rgba(255,255,255,0.8) !important;
+        padding: 10px 20px;
+        margin: 5px 0;
+        border-radius: 5px;
+    }
+    .admin-sidebar .nav-link:hover {
+        background-color: rgba(255,255,255,0.1);
+        color: white !important;
+    }
+    .admin-sidebar .nav-link.active {
+        background-color: var(--primary-color);
+        color: white !important;
+    }
+    .admin-content {
+        padding: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Admin Sidebar -->
+        <div class="col-md-3 col-lg-2 admin-sidebar">
+            <div class="d-flex flex-column">
+                <h5 class="text-white mb-4 px-3">Admin Panel</h5>
+                <nav class="nav flex-column">
+                    <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
+                        <i class="fas fa-tachometer-alt me-2"></i> Dashboard
+                    </a>
+                    <a class="nav-link {% if request.endpoint == 'manage_locations' %}active{% endif %}" href="{{ url_for('manage_locations') }}">
+                        <i class="fas fa-map-marker-alt me-2"></i> Manage Locations
+                    </a>
+                    <a class="nav-link {% if request.endpoint == 'assign_delivery' %}active{% endif %}" href="{{ url_for('assign_delivery') }}">
+                        <i class="fas fa-truck me-2"></i> Assign Deliveries
+                    </a>
+                    <a class="nav-link {% if request.endpoint == 'show_delivery_boys' %}active{% endif %}" href="{{ url_for('show_delivery_boys') }}">
+                        <i class="fas fa-users me-2"></i> Delivery Partners
+                    </a>
+                </nav>
+            </div>
+        </div>
+        
+        <!-- Admin Content -->
+        <div class="col-md-9 col-lg-10 admin-content">
+            {% block admin_content %}{% endblock %}
+        </div>
+    </div>
+</div>
+{% endblock %} 

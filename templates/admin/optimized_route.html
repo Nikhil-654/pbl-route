@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}Optimized Delivery Route{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Optimized Delivery Route</h2>
+    
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Delivery Sequence</h5>
+                    <ol class="list-group list-group-numbered">
+                        {% for location in optimized_locations %}
+                        <li class="list-group-item">
+                            {{ location.address }}
+                            <br>
+                            <small class="text-muted">
+                                Lat: {{ location.latitude }}, Lng: {{ location.longitude }}
+                            </small>
+                        </li>
+                        {% endfor %}
+                    </ol>
+                    <a href="{{ url_for('optimize_route') }}" class="btn btn-primary mt-3">Optimize New Route</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Route Map</h5>
+                    <div id="map" style="height: 500px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}"></script>
+<script>
+let map;
+let markers = [];
+let directionsService;
+let directionsRenderer;
+
+function initMap() {
+    // Initialize the map
+    map = new google.maps.Map(document.getElementById('map'), {
+        zoom: 12,
+        center: { lat: 0, lng: 0 }
+    });
+
+    directionsService = new google.maps.DirectionsService();
+    directionsRenderer = new google.maps.DirectionsRenderer({
+        map: map,
+        suppressMarkers: true
+    });
+
+    // Add markers for all locations in order
+    {% for location in optimized_locations %}
+    const marker = new google.maps.Marker({
+        position: { lat: {{ location.latitude }}, lng: {{ location.longitude }} },
+        map: map,
+        title: '{{ location.address }}',
+        label: '{{ loop.index }}'
+    });
+    markers.push(marker);
+    {% endfor %}
+
+    // Create the route path
+    if (markers.length > 1) {
+        const waypoints = markers.slice(1, -1).map(marker => ({
+            location: marker.getPosition(),
+            stopover: true
+        }));
+
+        const request = {
+            origin: markers[0].getPosition(),
+            destination: markers[markers.length - 1].getPosition(),
+            waypoints: waypoints,
+            optimizeWaypoints: false,
+            travelMode: 'DRIVING'
+        };
+
+        directionsService.route(request, (result, status) => {
+            if (status === 'OK') {
+                directionsRenderer.setDirections(result);
+            }
+        });
+    }
+
+    // Fit map to show all markers
+    if (markers.length > 0) {
+        const bounds = new google.maps.LatLngBounds();
+        markers.forEach(marker => bounds.extend(marker.getPosition()));
+        map.fitBounds(bounds);
+    }
+}
+
+// Initialize the map when the page loads
+window.onload = initMap;
+</script>
+{% endblock %} 
