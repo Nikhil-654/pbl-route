@@ -1,101 +1,21 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Delivery Boy Registration</title>
+</head>
+<body>
+    <h2>Register Delivery Boy</h2>
+    <form action="http://localhost:5000/register" method="POST">
+        <label for="name">Full Name:</label><br>
+        <input type="text" id="name" name="name" required><br><br>
 
-{% block title %}Register - Delivery Management System{% endblock %}
+        <label for="email">Email Address:</label><br>
+        <input type="email" id="email" name="email" required><br><br>
 
-{% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-8 col-lg-6">
-        <div class="card shadow-lg">
-            <div class="card-body p-5">
-                <h2 class="text-center mb-4">
-                    <i class="fas fa-user-plus text-primary"></i>
-                    Register as Delivery Partner
-                </h2>
-                <form method="POST" action="/register" class="needs-validation" novalidate>
-                    <div class="mb-3">
-                        <label for="name" class="form-label">Full Name</label>
-                        <div class="input-group">
-                            <span class="input-group-text"><i class="fas fa-user"></i></span>
-                            <input type="text" class="form-control" id="name" name="name" required>
-                            <div class="invalid-feedback">Please enter your name.</div>
-                        </div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="email" class="form-label">Email Address</label>
-                        <div class="input-group">
-                            <span class="input-group-text"><i class="fas fa-envelope"></i></span>
-                            <input type="email" class="form-control" id="email" name="email" required>
-                            <div class="invalid-feedback">Please enter a valid email address.</div>
-                        </div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="password" class="form-label">Password</label>
-                        <div class="input-group">
-                            <span class="input-group-text"><i class="fas fa-lock"></i></span>
-                            <input type="password" class="form-control" id="password" name="password" required>
-                            <button class="btn btn-outline-secondary" type="button" onclick="togglePassword()">
-                                <i class="fas fa-eye"></i>
-                            </button>
-                            <div class="invalid-feedback">Please enter a password.</div>
-                        </div>
-                    </div>
-                    
-                    <div class="mb-3 form-check">
-                        <input type="checkbox" class="form-check-input" id="terms" required>
-                        <label class="form-check-label" for="terms">
-                            I agree to the <a href="#" class="text-primary">Terms and Conditions</a>
-                        </label>
-                        <div class="invalid-feedback">You must agree to the terms and conditions.</div>
-                    </div>
-                    
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-primary btn-lg">
-                            <i class="fas fa-user-plus"></i> Register Now
-                        </button>
-                    </div>
-                </form>
-                
-                <div class="text-center mt-4">
-                    <p class="mb-0">Already have an account? <a href="/login" class="text-primary">Login here</a></p>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-{% endblock %}
+        <label for="password">Password:</label><br>
+        <input type="password" id="password" name="password" required><br><br>
 
-{% block extra_js %}
-<script>
-function togglePassword() {
-    const passwordInput = document.getElementById('password');
-    const icon = document.querySelector('.fa-eye');
-    
-    if (passwordInput.type === 'password') {
-        passwordInput.type = 'text';
-        icon.classList.remove('fa-eye');
-        icon.classList.add('fa-eye-slash');
-    } else {
-        passwordInput.type = 'password';
-        icon.classList.remove('fa-eye-slash');
-        icon.classList.add('fa-eye');
-    }
-}
-
-// Form validation
-(function () {
-    'use strict'
-    var forms = document.querySelectorAll('.needs-validation')
-    Array.prototype.slice.call(forms).forEach(function (form) {
-        form.addEventListener('submit', function (event) {
-            if (!form.checkValidity()) {
-                event.preventDefault()
-                event.stopPropagation()
-            }
-            form.classList.add('was-validated')
-        }, false)
-    })
-})()
-</script>
-{% endblock %}
+        <input type="submit" value="Register">
+    </form>
+</body>
+</html>

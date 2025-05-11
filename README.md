@@ -1,21 +1,24 @@
 # Delivery Management System
 
-A Flask-based web application for managing delivery locations and assigning deliveries to delivery boys.
+A Flask-based delivery management system that helps manage delivery boys, optimize routes, and track deliveries.
 
 ## Features
 
-- User authentication and authorization
-- Delivery location management with Google Maps integration
-- Delivery assignment and tracking
-- Real-time delivery status updates
-- Admin dashboard for managing deliveries and locations
-- Mobile-responsive design
+- User Authentication (Delivery Boys)
+- Email Verification
+- Delivery Boy Management
+- Location Management
+- Route Optimization
+- Delivery Assignment
+- Real-time Delivery Tracking
+- Admin Dashboard
 
 ## Prerequisites
 
-- Python 3.8 or higher
-- Google Maps API key
-- Gmail account for sending verification emails
+- Python 3.7+
+- pip (Python package installer)
+- SQLite3
+- Gmail account (for email verification)
 
 ## Installation
 
@@ -25,7 +28,7 @@ git clone <repository-url>
 cd delivery-management-system
 ```
 
-2. Create a virtual environment and activate it:
+2. Create and activate a virtual environment:
 ```bash
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
@@ -36,71 +39,49 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-4. Create a `.env` file in the project root with the following variables:
+4. Create a `.env` file in the root directory with the following variables:
 ```
-FLASK_SECRET_KEY=your_secret_key
+FLASK_SECRET_KEY=your_secret_key_here
+MAIL_USERNAME=your_email@gmail.com
+MAIL_PASSWORD=your_app_password
 GOOGLE_MAPS_API_KEY=your_google_maps_api_key
-MAIL_USERNAME=your_gmail_address
-MAIL_PASSWORD=your_gmail_app_password
 ```
 
 5. Initialize the database:
 ```bash
-flask db init
-flask db migrate
-flask db upgrade
+python init_db.py
 ```
 
-## Usage
+## Running the Application
 
-1. Start the development server:
+1. Start the Flask development server:
 ```bash
-flask run
+python app.py
 ```
 
-2. Access the application at `http://localhost:5000`
+2. Open your browser and navigate to `http://localhost:5000`
 
-3. Register as a delivery boy or admin user
+## Project Structure
 
-4. Log in to access the dashboard
+```
+delivery-management-system/
+├── app.py                 # Main application file
+├── route_optimizer.py     # Route optimization logic
+├── init_db.py            # Database initialization
+├── requirements.txt      # Project dependencies
+├── .env                 # Environment variables
+├── templates/           # HTML templates
+│   ├── admin/          # Admin templates
+│   └── ...             # Other templates
+└── tests/              # Test files
+```
 
-## Admin Features
+## Testing
 
-### Managing Locations
-- Add new delivery locations using the Google Maps interface
-- View all existing locations
-- Delete locations (if they have no active deliveries)
-
-### Assigning Deliveries
-- Create new delivery assignments
-- Select delivery boy and location
-- Add customer details and notes
-- Track delivery status
-- View delivery history
-
-## Delivery Boy Features
-
-- View assigned deliveries
-- Update delivery status
-- Track earnings
-- View delivery history
-
-## API Endpoints
-
-### Admin Endpoints
-- `GET /admin/locations` - List all delivery locations
-- `POST /admin/locations` - Add a new location
-- `DELETE /admin/locations/<id>` - Delete a location
-- `GET /admin/assign-delivery` - View delivery assignment form
-- `POST /admin/assign-delivery` - Create a new delivery assignment
-- `GET /admin/deliveries/<id>` - Get delivery details
-- `DELETE /admin/deliveries/<id>` - Delete a delivery
-- `POST /admin/deliveries/<id>/status` - Update delivery status
-
-### Delivery Boy Endpoints
-- `GET /dashboard` - View delivery boy dashboard
-- `GET /api/deliveries/<id>` - Get delivery details
-- `POST /api/delivery/<id>/status` - Update delivery status
+Run the test suite:
+```bash
+pytest
+```
 
 ## Contributing
 

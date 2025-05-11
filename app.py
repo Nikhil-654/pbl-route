@@ -9,7 +9,7 @@ from datetime import datetime
 import os
 from dotenv import load_dotenv
 import json
-from route_optimizer import optimize_delivery_route
+from route_optimizer import optimize_delivery_route, RouteOptimizer
 
 # Load environment variables
 load_dotenv()
@@ -72,6 +72,15 @@ class Delivery(db.Model):
     customer_name = db.Column(db.String(100), nullable=False)
     customer_phone = db.Column(db.String(20), nullable=True)
     notes = db.Column(db.Text, nullable=True)
+
+# Add this new model for depot locations
+class DeliveryDepot(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    address = db.Column(db.String(255), nullable=False)
+    latitude = db.Column(db.Float, nullable=False)
+    longitude = db.Column(db.Float, nullable=False)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 # User loader for Flask-Login
 @login_manager.user_loader
@@ -272,25 +281,26 @@ def dashboard():
 @login_required
 def manage_locations():
     if request.method == "POST":
-        address = request.form["address"]
-        latitude = float(request.form["latitude"])
-        longitude = float(request.form["longitude"])
-        
-        new_location = DeliveryLocation(
-            address=address,
-            latitude=latitude,
-            longitude=longitude
-        )
-        
+        address = request.form.get("address")
+        latitude = request.form.get("latitude")
+        longitude = request.form.get("longitude")
+        new_location = DeliveryLocation(address=address, latitude=latitude, longitude=longitude)
         db.session.add(new_location)
         db.session.commit()
-        
-        flash('Location added successfully!', 'success')
-        return redirect(url_for('manage_locations'))
-    
+        return redirect(url_for("manage_locations"))
     locations = DeliveryLocation.query.all()
+    # Convert SQLAlchemy objects to dicts for JSON serialization
+    locations_dicts = [
+        {
+            'id': loc.id,
+            'address': loc.address,
+            'latitude': loc.latitude,
+            'longitude': loc.longitude
+        } for loc in locations
+    ]
+    print("GOOGLE_MAPS_API_KEY:", os.getenv('GOOGLE_MAPS_API_KEY'))
     return render_template("admin/locations.html", 
-                         locations=locations,
+                         locations=locations_dicts,
                          google_maps_api_key=os.getenv('GOOGLE_MAPS_API_KEY'))
 
 @app.route("/admin/locations/<int:location_id>", methods=["DELETE"])
@@ -398,36 +408,75 @@ def update_delivery_status(delivery_id):
 @app.route("/admin/optimize-route", methods=["GET", "POST"])
 @login_required
 def optimize_route():
-    if request.method == "POST":
-        # Get the list of location IDs from the form
-        location_ids = request.form.getlist("location_ids[]")
-        
-        # Convert string IDs to integers
-        location_ids = [int(id) for id in location_ids]
-        
-        # Get the locations from the database
-        locations = DeliveryLocation.query.filter(DeliveryLocation.id.in_(location_ids)).all()
-        
-        # Extract coordinates for optimization
-        coordinates = [(loc.latitude, loc.longitude) for loc in locations]
-        
-        # Get the optimized route
-        optimized_route = optimize_delivery_route(coordinates)
-        
-        # Create a list of locations in the optimized order
-        optimized_locations = []
-        for idx in optimized_route:
-            optimized_locations.append(locations[idx])
-        
-        return render_template("admin/optimized_route.html", 
-                             locations=optimized_locations,
-                             google_maps_api_key=os.getenv('GOOGLE_MAPS_API_KEY'))
+    # Get all available locations
+    delivery_locations = DeliveryLocation.query.all()
     
-    # GET request - show the form to select locations
-    locations = DeliveryLocation.query.all()
-    return render_template("admin/optimize_route.html", 
-                         locations=locations,
-                         google_maps_api_key=os.getenv('GOOGLE_MAPS_API_KEY'))
+    # For now, use the same locations as depots (you can add proper depot management later)
+    depot_locations = DeliveryLocation.query.all()
+    
+    if request.method == "POST":
+        start_location_id = int(request.form["start_location"])
+        delivery_points = request.form.getlist("delivery_points")
+        algorithm = request.form["algorithm"]
+        return_to_depot = bool(request.form.get("return_to_depot", True))
+        
+        # Convert delivery points to integers
+        delivery_points = [int(point_id) for point_id in delivery_points]
+        
+        # Get location objects for all selected points
+        selected_locations = DeliveryLocation.query.filter(DeliveryLocation.id.in_(delivery_points)).all()
+        start_location = DeliveryLocation.query.get(start_location_id)
+        
+        # Convert locations to dictionary format for the optimizer
+        locations_data = [
+            {
+                'id': start_location.id,
+                'latitude': start_location.latitude,
+                'longitude': start_location.longitude,
+                'address': start_location.address,
+                'is_depot': True
+            }
+        ]
+        
+        # Add delivery points
+        locations_data.extend([
+            {
+                'id': loc.id,
+                'latitude': loc.latitude,
+                'longitude': loc.longitude,
+                'address': loc.address,
+                'is_depot': False
+            }
+            for loc in selected_locations
+        ])
+        
+        # If return to depot is enabled, add the depot as the final destination
+        if return_to_depot:
+            locations_data.append({
+                'id': start_location.id,
+                'latitude': start_location.latitude,
+                'longitude': start_location.longitude,
+                'address': start_location.address,
+                'is_depot': True
+            })
+        
+        # Create optimizer instance and get optimized route
+        optimizer = RouteOptimizer(locations_data)
+        optimized_route = optimizer.optimize_route(start_location_id, algorithm)
+        optimized_route['return_to_depot'] = return_to_depot
+        
+        return render_template(
+            "admin/optimize_route.html",
+            delivery_locations=delivery_locations,
+            depot_locations=depot_locations,
+            optimized_route=optimized_route
+        )
+    
+    return render_template(
+        "admin/optimize_route.html",
+        delivery_locations=delivery_locations,
+        depot_locations=depot_locations
+    )
 
 # Run the app
 if __name__ == "__main__":
