@@ -6,6 +6,36 @@
 <div class="container-fluid">
     <h1 class="mb-4">Manage Delivery Locations</h1>
     
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-4">
+            <div class="card p-3 mb-3">
+                <h5>Route Settings</h5>
+                <div class="mb-3">
+                    <label for="fuel_eff">Fuel Efficiency</label>
+                    <input type="number" id="fuel_eff" class="form-control" value="10" min="1" step="0.1"> km/L
+                </div>
+                <div class="mb-3">
+                    <label for="start_location">Start Location</label>
+                    <input type="text" id="start_location" class="form-control mb-2" placeholder="Search or click map">
+                </div>
+                <div class="mb-3">
+                    <label>Delivery Points</label>
+                    <div id="delivery_points_list"></div>
+                    <input type="text" id="delivery_point_search" class="form-control mb-2" placeholder="Search delivery location">
+                    <button class="btn btn-outline-success btn-sm" id="add_point">+ Add</button>
+                </div>
+                <button class="btn btn-primary w-100 mb-2" id="optimize_route">Optimize Route</button>
+                <button class="btn btn-danger w-100" id="clear_route">Clear Route</button>
+            </div>
+        </div>
+        <!-- Map and Directions -->
+        <div class="col-md-8">
+            <div id="map" style="height: 500px;"></div>
+            <div id="directions_panel" class="mt-3"></div>
+        </div>
+    </div>
+    
     <!-- Add Location Form -->
     <div class="card mb-4">
         <div class="card-header">
@@ -58,13 +88,13 @@
                     <tbody>
                         {% for location in locations %}
                         <tr>
-                            <td>{{ location.id }}</td>
-                            <td>{{ location.address }}</td>
-                            <td>{{ location.latitude }}</td>
-                            <td>{{ location.longitude }}</td>
-                            <td>{{ location.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                            <td>{{ location['id'] }}</td>
+                            <td>{{ location['address'] }}</td>
+                            <td>{{ location['latitude'] }}</td>
+                            <td>{{ location['longitude'] }}</td>
+                            <td>{{ location['created_at'] }}</td>
                             <td>
-                                <button class="btn btn-sm btn-danger delete-location" data-id="{{ location.id }}">
+                                <button class="btn btn-sm btn-danger delete-location" data-id="{{ location['id'] }}">
                                     <i class="fas fa-trash"></i>
                                 </button>
                             </td>
@@ -79,70 +109,132 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=places"></script>
+<script src="https://maps.googleapis.com/maps/api/js?key={{ AIzaSyCWoXDNYj0IXvWE0rRKQ01oH0MruywFD_w }}&libraries=places"></script>
 <script>
-    let map;
-    let marker;
+    let map, directionsService, directionsRenderer;
+    let startMarker = null, deliveryMarkers = [];
+    let deliveryPoints = [];
+    let startLocation = null;
 
     function initMap() {
-        // Initialize the map
         map = new google.maps.Map(document.getElementById('map'), {
-            center: { lat: 0, lng: 0 },
-            zoom: 2
+            center: {lat: 23.5, lng: 80.5},
+            zoom: 5,
+            mapTypeId: 'satellite'
         });
+        directionsService = new google.maps.DirectionsService();
+        directionsRenderer = new google.maps.DirectionsRenderer({map: map, panel: document.getElementById('directions_panel')});
 
-        // Initialize the Places Autocomplete
-        const addressInput = document.getElementById('address');
-        const autocomplete = new google.maps.places.Autocomplete(addressInput);
-
-        // Add click listener to the map
-        map.addListener('click', function(e) {
-            placeMarker(e.latLng);
-            updateFormFields(e.latLng);
-        });
-
-        // Handle place selection
-        autocomplete.addListener('place_changed', function() {
-            const place = autocomplete.getPlace();
+        // Start location autocomplete
+        const startInput = document.getElementById('start_location');
+        const startAuto = new google.maps.places.Autocomplete(startInput);
+        startAuto.addListener('place_changed', function() {
+            const place = startAuto.getPlace();
             if (place.geometry) {
-                map.setCenter(place.geometry.location);
-                map.setZoom(15);
-                placeMarker(place.geometry.location);
-                updateFormFields(place.geometry.location);
+                setStartLocation(place.geometry.location, place.formatted_address);
             }
         });
 
-        // Load existing locations
-        {% for location in locations %}
-        new google.maps.Marker({
-            position: { lat: {{ location.latitude }}, lng: {{ location.longitude }} },
-            map: map,
-            title: '{{ location.address }}'
+        // Delivery point autocomplete
+        const pointInput = document.getElementById('delivery_point_search');
+        const pointAuto = new google.maps.places.Autocomplete(pointInput);
+
+        document.getElementById('add_point').onclick = function(e) {
+            e.preventDefault();
+            const place = pointAuto.getPlace();
+            if (place && place.geometry) {
+                addDeliveryPoint(place.geometry.location, place.formatted_address);
+                pointInput.value = '';
+            }
+        };
+
+        // Map click for start/delivery points
+        map.addListener('click', function(e) {
+            if (!startLocation) {
+                setStartLocation(e.latLng, 'Custom Location');
+            } else {
+                addDeliveryPoint(e.latLng, 'Custom Point');
+            }
         });
-        {% endfor %}
+
+        // Optimize and clear
+        document.getElementById('optimize_route').onclick = optimizeRoute;
+        document.getElementById('clear_route').onclick = clearRoute;
     }
 
-    function placeMarker(location) {
-        if (marker) {
-            marker.setMap(null);
+    // Set Start Location
+    function setStartLocation(latLng, label) {
+        if (startMarker) startMarker.setMap(null);
+        startMarker = new google.maps.Marker({position: latLng, map: map, label: 'S', icon: {url: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png'}});
+        startLocation = latLng;
+        document.getElementById('start_location').value = label;
+    }
+
+    // Add Delivery Point
+    function addDeliveryPoint(latLng, label) {
+        const marker = new google.maps.Marker({position: latLng, map: map, label: 'D', icon: {url: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png'}});
+        deliveryMarkers.push(marker);
+        deliveryPoints.push({location: latLng, label: label});
+        updateDeliveryPointsList();
+    }
+
+    // Update Delivery Points List
+    function updateDeliveryPointsList() {
+        const list = document.getElementById('delivery_points_list');
+        list.innerHTML = '';
+        deliveryPoints.forEach((pt, idx) => {
+            const div = document.createElement('div');
+            div.className = 'mb-1';
+            div.innerHTML = `${pt.label} <button class="btn btn-sm btn-danger" onclick="removeDeliveryPoint(${idx})">x</button>`;
+            list.appendChild(div);
+        });
+    }
+
+    // Remove Delivery Point
+    window.removeDeliveryPoint = function(idx) {
+        deliveryMarkers[idx].setMap(null);
+        deliveryMarkers.splice(idx, 1);
+        deliveryPoints.splice(idx, 1);
+        updateDeliveryPointsList();
+    }
+
+    // Optimize Route
+    function optimizeRoute() {
+        if (!startLocation || deliveryPoints.length === 0) {
+            alert('Set a start location and at least one delivery point.');
+            return;
         }
-        marker = new google.maps.Marker({
-            position: location,
-            map: map,
-            draggable: true
-        });
-
-        marker.addListener('dragend', function() {
-            updateFormFields(marker.getPosition());
+        const waypoints = deliveryPoints.map(pt => ({location: pt.location, stopover: true}));
+        directionsService.route({
+            origin: startLocation,
+            destination: deliveryPoints[deliveryPoints.length-1].location,
+            waypoints: waypoints.slice(0, -1),
+            travelMode: google.maps.TravelMode.DRIVING,
+            optimizeWaypoints: true
+        }, function(response, status) {
+            if (status === 'OK') {
+                directionsRenderer.setDirections(response);
+            } else {
+                alert('Directions request failed: ' + status);
+            }
         });
     }
 
-    function updateFormFields(location) {
-        document.getElementById('latitude').value = location.lat();
-        document.getElementById('longitude').value = location.lng();
+    // Clear Route
+    function clearRoute() {
+        if (startMarker) startMarker.setMap(null);
+        startMarker = null;
+        deliveryMarkers.forEach(m => m.setMap(null));
+        deliveryMarkers = [];
+        deliveryPoints = [];
+        startLocation = null;
+        document.getElementById('start_location').value = '';
+        document.getElementById('delivery_point_search').value = '';
+        document.getElementById('delivery_points_list').innerHTML = '';
+        directionsRenderer.set('directions', null);
+        document.getElementById('directions_panel').innerHTML = '';
     }
 
-    // Initialize the map when the page loads
     window.onload = initMap;
 
     // Handle location deletion

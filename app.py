@@ -82,6 +82,19 @@ class DeliveryDepot(db.Model):
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+# Add this new model for assignments
+class Assignment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    delivery_boy_id = db.Column(db.Integer, db.ForeignKey('delivery_boy.id'), nullable=False)
+    source_lat = db.Column(db.Float, nullable=False)
+    source_lng = db.Column(db.Float, nullable=False)
+    dest_lat = db.Column(db.Float, nullable=False)
+    dest_lng = db.Column(db.Float, nullable=False)
+    waypoints = db.Column(db.Text, nullable=True)  # "lat1,lng1;lat2,lng2"
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    status = db.Column(db.String(50), default="Active")
+    delivery_boy = db.relationship('DeliveryBoy', backref='assignments')
+
 # User loader for Flask-Login
 @login_manager.user_loader
 def load_user(user_id):
@@ -289,19 +302,23 @@ def manage_locations():
         db.session.commit()
         return redirect(url_for("manage_locations"))
     locations = DeliveryLocation.query.all()
-    # Convert SQLAlchemy objects to dicts for JSON serialization
     locations_dicts = [
         {
             'id': loc.id,
             'address': loc.address,
             'latitude': loc.latitude,
-            'longitude': loc.longitude
-        } for loc in locations
+            'longitude': loc.longitude,
+            'created_at': loc.created_at.strftime("%Y-%m-%d %H:%M:%S")
+        }
+        for loc in locations
     ]
-    print("GOOGLE_MAPS_API_KEY:", os.getenv('GOOGLE_MAPS_API_KEY'))
-    return render_template("admin/locations.html", 
-                         locations=locations_dicts,
-                         google_maps_api_key=os.getenv('GOOGLE_MAPS_API_KEY'))
+    delivery_boys = DeliveryBoy.query.filter_by(status="Confirmed").all()
+    return render_template(
+        "admin/locations.html",
+        locations=locations_dicts,
+        delivery_boys=delivery_boys,
+        google_maps_api_key="YOUR_GOOGLE_MAPS_API_KEY"
+    )
 
 @app.route("/admin/locations/<int:location_id>", methods=["DELETE"])
 @login_required
@@ -469,13 +486,86 @@ def optimize_route():
             "admin/optimize_route.html",
             delivery_locations=delivery_locations,
             depot_locations=depot_locations,
-            optimized_route=optimized_route
+            optimized_route=optimized_route,
+            google_maps_api_key="AIzaSyCWoXDNYj0IXvWE0rRKQ01oH0MruywFD_w"
         )
     
     return render_template(
         "admin/optimize_route.html",
         delivery_locations=delivery_locations,
-        depot_locations=depot_locations
+        depot_locations=depot_locations,
+        google_maps_api_key="AIzaSyCWoXDNYj0IXvWE0rRKQ01oH0MruywFD_w"
+    )
+
+@app.route("/admin/view-route/<int:assignment_id>")
+@login_required
+def view_route(assignment_id):
+    assignment = Assignment.query.get_or_404(assignment_id)
+    waypoints = []
+    if assignment.waypoints:
+        for wp in assignment.waypoints.split(";"):
+            lat, lng = map(float, wp.split(","))
+            waypoints.append({"lat": lat, "lng": lng})
+    return render_template(
+        "admin/view_route.html",
+        assignment=assignment,
+        waypoints=waypoints,
+        google_maps_api_key="AIzaSyCWoXDNYj0IXvWE0rRKQ01oH0MruywFD_w"
+    )
+
+@app.route("/admin/assign-route", methods=["GET", "POST"])
+@login_required
+def assign_route():
+    if request.method == "POST":
+        delivery_boy_id = request.form.get("delivery_boy_id")
+        source_lat = float(request.form.get("source_lat"))
+        source_lng = float(request.form.get("source_lng"))
+        dest_lat = float(request.form.get("dest_lat"))
+        dest_lng = float(request.form.get("dest_lng"))
+        waypoints = request.form.get("waypoints")  # e.g., "lat1,lng1;lat2,lng2"
+        new_assignment = Assignment(
+            delivery_boy_id=delivery_boy_id,
+            source_lat=source_lat,
+            source_lng=source_lng,
+            dest_lat=dest_lat,
+            dest_lng=dest_lng,
+            waypoints=waypoints
+        )
+        db.session.add(new_assignment)
+        db.session.commit()
+        flash("Route assigned!", "success")
+        return redirect(url_for("view_route", assignment_id=new_assignment.id))
+    delivery_boys = DeliveryBoy.query.filter_by(status="Confirmed").all()
+    return render_template("admin/assign_route.html", delivery_boys=delivery_boys, google_maps_api_key="AIzaSyCWoXDNYj0IXvWE0rRKQ01oH0MruywFD_w")
+
+@app.route("/admin/save-assignment", methods=["POST"])
+@login_required
+def save_assignment():
+    data = request.get_json()
+    try:
+        assignment = Assignment(
+            delivery_boy_id=int(data['delivery_boy_id']),
+            source_lat=float(data['source_lat']),
+            source_lng=float(data['source_lng']),
+            dest_lat=float(data['dest_lat']),
+            dest_lng=float(data['dest_lng']),
+            waypoints=data['waypoints']
+        )
+        db.session.add(assignment)
+        db.session.commit()
+        return jsonify({"success": True, "assignment_id": assignment.id})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "message": str(e)})
+
+@app.route("/admin/route-planner")
+@login_required
+def route_planner():
+    delivery_boys = DeliveryBoy.query.filter_by(status="Confirmed").all()
+    return render_template(
+        "admin/route_planner.html",
+        delivery_boys=delivery_boys,
+        google_maps_api_key="AIzaSyCWoXDNYj0IXvWE0rRKQ01oH0MruywFD_w"
     )
 
 # Run the app
