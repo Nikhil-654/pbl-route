@@ -61,7 +61,7 @@
                         </div>
                     </div>
                 </div>
-                <div id="map" class="mb-3" style="height: 400px;"></div>
+                <div id="location_map" class="mb-3" style="height: 400px;"></div>
                 <button type="submit" class="btn btn-primary">Add Location</button>
             </form>
         </div>
@@ -109,21 +109,43 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://maps.googleapis.com/maps/api/js?key={{ AIzaSyCWoXDNYj0IXvWE0rRKQ01oH0MruywFD_w }}&libraries=places"></script>
+<script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=places&callback=initMap" async defer></script>
 <script>
     let map, directionsService, directionsRenderer;
     let startMarker = null, deliveryMarkers = [];
     let deliveryPoints = [];
     let startLocation = null;
+    let locationMap = null;
 
     function initMap() {
+        // Initialize main map
         map = new google.maps.Map(document.getElementById('map'), {
             center: {lat: 23.5, lng: 80.5},
             zoom: 5,
-            mapTypeId: 'satellite'
+            mapTypeId: 'roadmap',
+            mapTypeControl: true,
+            streetViewControl: true,
+            fullscreenControl: true,
+            zoomControl: true
         });
+
+        // Initialize location map
+        locationMap = new google.maps.Map(document.getElementById('location_map'), {
+            center: {lat: 23.5, lng: 80.5},
+            zoom: 5,
+            mapTypeId: 'roadmap',
+            mapTypeControl: true,
+            streetViewControl: true,
+            fullscreenControl: true,
+            zoomControl: true
+        });
+
         directionsService = new google.maps.DirectionsService();
-        directionsRenderer = new google.maps.DirectionsRenderer({map: map, panel: document.getElementById('directions_panel')});
+        directionsRenderer = new google.maps.DirectionsRenderer({
+            map: map,
+            panel: document.getElementById('directions_panel'),
+            suppressMarkers: true
+        });
 
         // Start location autocomplete
         const startInput = document.getElementById('start_location');
@@ -138,6 +160,27 @@
         // Delivery point autocomplete
         const pointInput = document.getElementById('delivery_point_search');
         const pointAuto = new google.maps.places.Autocomplete(pointInput);
+
+        // Address autocomplete for location form
+        const addressInput = document.getElementById('address');
+        const addressAuto = new google.maps.places.Autocomplete(addressInput);
+        addressAuto.addListener('place_changed', function() {
+            const place = addressAuto.getPlace();
+            if (place.geometry) {
+                document.getElementById('latitude').value = place.geometry.location.lat();
+                document.getElementById('longitude').value = place.geometry.location.lng();
+                
+                // Add marker to location map
+                new google.maps.Marker({
+                    position: place.geometry.location,
+                    map: locationMap,
+                    title: place.formatted_address
+                });
+                
+                locationMap.setCenter(place.geometry.location);
+                locationMap.setZoom(15);
+            }
+        });
 
         document.getElementById('add_point').onclick = function(e) {
             e.preventDefault();
@@ -160,19 +203,52 @@
         // Optimize and clear
         document.getElementById('optimize_route').onclick = optimizeRoute;
         document.getElementById('clear_route').onclick = clearRoute;
+
+        // Initialize existing locations on the map
+        {% for location in locations %}
+        new google.maps.Marker({
+            position: {lat: {{ location['latitude'] }}, lng: {{ location['longitude'] }}},
+            map: map,
+            title: "{{ location['address'] }}"
+        });
+        {% endfor %}
     }
 
     // Set Start Location
     function setStartLocation(latLng, label) {
         if (startMarker) startMarker.setMap(null);
-        startMarker = new google.maps.Marker({position: latLng, map: map, label: 'S', icon: {url: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png'}});
+        startMarker = new google.maps.Marker({
+            position: latLng,
+            map: map,
+            label: 'S',
+            icon: {
+                path: google.maps.SymbolPath.CIRCLE,
+                scale: 10,
+                fillColor: '#4CAF50',
+                fillOpacity: 1,
+                strokeColor: '#FFFFFF',
+                strokeWeight: 2
+            }
+        });
         startLocation = latLng;
         document.getElementById('start_location').value = label;
     }
 
     // Add Delivery Point
     function addDeliveryPoint(latLng, label) {
-        const marker = new google.maps.Marker({position: latLng, map: map, label: 'D', icon: {url: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png'}});
+        const marker = new google.maps.Marker({
+            position: latLng,
+            map: map,
+            label: 'D',
+            icon: {
+                path: google.maps.SymbolPath.CIRCLE,
+                scale: 10,
+                fillColor: '#F44336',
+                fillOpacity: 1,
+                strokeColor: '#FFFFFF',
+                strokeWeight: 2
+            }
+        });
         deliveryMarkers.push(marker);
         deliveryPoints.push({location: latLng, label: label});
         updateDeliveryPointsList();
@@ -201,41 +277,43 @@
     // Optimize Route
     function optimizeRoute() {
         if (!startLocation || deliveryPoints.length === 0) {
-            alert('Set a start location and at least one delivery point.');
+            alert('Please set a start location and at least one delivery point');
             return;
         }
-        const waypoints = deliveryPoints.map(pt => ({location: pt.location, stopover: true}));
-        directionsService.route({
+
+        const waypoints = deliveryPoints.map(point => ({
+            location: point.location,
+            stopover: true
+        }));
+
+        const request = {
             origin: startLocation,
-            destination: deliveryPoints[deliveryPoints.length-1].location,
-            waypoints: waypoints.slice(0, -1),
-            travelMode: google.maps.TravelMode.DRIVING,
-            optimizeWaypoints: true
-        }, function(response, status) {
+            destination: startLocation,
+            waypoints: waypoints,
+            optimizeWaypoints: true,
+            travelMode: google.maps.TravelMode.DRIVING
+        };
+
+        directionsService.route(request, function(result, status) {
             if (status === 'OK') {
-                directionsRenderer.setDirections(response);
+                directionsRenderer.setDirections(result);
             } else {
-                alert('Directions request failed: ' + status);
+                alert('Could not calculate route: ' + status);
             }
         });
     }
 
     // Clear Route
     function clearRoute() {
+        directionsRenderer.setDirections({routes: []});
         if (startMarker) startMarker.setMap(null);
-        startMarker = null;
-        deliveryMarkers.forEach(m => m.setMap(null));
+        deliveryMarkers.forEach(marker => marker.setMap(null));
         deliveryMarkers = [];
         deliveryPoints = [];
         startLocation = null;
+        updateDeliveryPointsList();
         document.getElementById('start_location').value = '';
-        document.getElementById('delivery_point_search').value = '';
-        document.getElementById('delivery_points_list').innerHTML = '';
-        directionsRenderer.set('directions', null);
-        document.getElementById('directions_panel').innerHTML = '';
     }
-
-    window.onload = initMap;
 
     // Handle location deletion
     document.querySelectorAll('.delete-location').forEach(button => {

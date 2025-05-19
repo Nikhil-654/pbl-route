@@ -18,6 +18,11 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'default_secret_key_for_development')
 
+# Get Google Maps API key from environment
+GOOGLE_MAPS_API_KEY = os.getenv('GOOGLE_MAPS_API_KEY')
+if not GOOGLE_MAPS_API_KEY:
+    raise ValueError("Google Maps API key not found in environment variables")
+
 # Database setup (SQLite for simplicity)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///delivery_boys.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -317,7 +322,7 @@ def manage_locations():
         "admin/locations.html",
         locations=locations_dicts,
         delivery_boys=delivery_boys,
-        google_maps_api_key="YOUR_GOOGLE_MAPS_API_KEY"
+        google_maps_api_key=GOOGLE_MAPS_API_KEY
     )
 
 @app.route("/admin/locations/<int:location_id>", methods=["DELETE"])
@@ -487,14 +492,14 @@ def optimize_route():
             delivery_locations=delivery_locations,
             depot_locations=depot_locations,
             optimized_route=optimized_route,
-            google_maps_api_key="AIzaSyCWoXDNYj0IXvWE0rRKQ01oH0MruywFD_w"
+            google_maps_api_key=GOOGLE_MAPS_API_KEY
         )
-    
+        
     return render_template(
         "admin/optimize_route.html",
         delivery_locations=delivery_locations,
         depot_locations=depot_locations,
-        google_maps_api_key="AIzaSyCWoXDNYj0IXvWE0rRKQ01oH0MruywFD_w"
+        google_maps_api_key=GOOGLE_MAPS_API_KEY
     )
 
 @app.route("/admin/view-route/<int:assignment_id>")
@@ -510,7 +515,7 @@ def view_route(assignment_id):
         "admin/view_route.html",
         assignment=assignment,
         waypoints=waypoints,
-        google_maps_api_key="AIzaSyCWoXDNYj0IXvWE0rRKQ01oH0MruywFD_w"
+        google_maps_api_key=GOOGLE_MAPS_API_KEY
     )
 
 @app.route("/admin/assign-route", methods=["GET", "POST"])
@@ -536,7 +541,7 @@ def assign_route():
         flash("Route assigned!", "success")
         return redirect(url_for("view_route", assignment_id=new_assignment.id))
     delivery_boys = DeliveryBoy.query.filter_by(status="Confirmed").all()
-    return render_template("admin/assign_route.html", delivery_boys=delivery_boys, google_maps_api_key="AIzaSyCWoXDNYj0IXvWE0rRKQ01oH0MruywFD_w")
+    return render_template("admin/assign_route.html", delivery_boys=delivery_boys, google_maps_api_key=GOOGLE_MAPS_API_KEY)
 
 @app.route("/admin/save-assignment", methods=["POST"])
 @login_required
@@ -565,7 +570,7 @@ def route_planner():
     return render_template(
         "admin/route_planner.html",
         delivery_boys=delivery_boys,
-        google_maps_api_key="AIzaSyCWoXDNYj0IXvWE0rRKQ01oH0MruywFD_w"
+        google_maps_api_key=GOOGLE_MAPS_API_KEY
     )
 
 # Run the app
